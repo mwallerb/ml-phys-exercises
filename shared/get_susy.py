@@ -36,12 +36,13 @@ def progress_bar(inner, total):
         if not (i % step):
             sys.stderr.write("\r[" + ("@" * (i // step)).ljust(80, ".") + "]")
         yield item
-    sys.stderr.write("[" + "@" * 80 + "]\n")
+    sys.stderr.write("\r[" + "@" * 80 + "]\n")
 
 
 def get_susy_dataset(url=URL, progress=True):
     # Be kind: do not execute this many times, as it downloads a large file
     # from a university server.
+    sys.stderr.write("Downloading file... ")
     rows = []
     with requests.get(URL, allow_redirects=True) as response:
         sys.stderr.write("Got file.\n")
@@ -61,7 +62,7 @@ def save_dataset(dataset, filename="susy.npz"):
     np.savez_compressed("../shared/susy.npz",
                         labels=labels.astype(np.int8),
                         variables=variables.astype(np.float32),
-                        variable_names=variable_names)
+                        variable_names=VARIABLE_NAMES)
 
 
 if __name__ == "__main__":
