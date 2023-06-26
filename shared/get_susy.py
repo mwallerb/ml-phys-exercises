@@ -1,12 +1,19 @@
+#!/usr/bin/env python
+# Download the SUSY dataset
+#
+# Copyright 2023 Markus Wallerberger
+# SPDX-License-Identifier: MIT
 import csv
 import gzip
 import io
+import pathlib
 import sys
 
 import numpy as np
 import requests
 
 URL = "https://archive.ics.uci.edu/ml/machine-learning-databases/00279/SUSY.csv.gz"
+SCRIPT_DIR = pathlib.Path(__file__).absolute().parent
 
 VARIABLE_NAMES = [
     "lepton 1 pT",
@@ -42,29 +49,33 @@ def progress_bar(inner, total):
 def get_susy_dataset(url=URL, progress=True):
     # Be kind: do not execute this many times, as it downloads a large file
     # from a university server.
-    sys.stderr.write("Downloading file... ")
+    if progress:
+        sys.stderr.write(f"Downloading and extracting ...\n{url}\n")
     rows = []
-    with requests.get(URL, allow_redirects=True) as response:
-        sys.stderr.write("Got file.\n")
-        with io.BytesIO(response.content) as response_file:
-            with gzip.GzipFile(fileobj=response_file) as csv_file:
-                csv_reader = csv.reader(io.TextIOWrapper(csv_file))
-                if progress:
-                    csv_reader = progress_bar(csv_reader, 5_000_000)
-                for row in csv_reader:
-                    rows.append(list(map(float, row)))
+    with requests.get(URL, allow_redirects=True, stream=True) as response:
+        with gzip.GzipFile(fileobj=response.raw) as csv_file:
+            csv_reader = csv.reader(io.TextIOWrapper(csv_file))
+            if progress:
+                csv_reader = progress_bar(csv_reader, 5_000_000)
+            for row in csv_reader:
+                rows.append(list(map(float, row)))
+    if progress:
+        sys.stderr.write("Converting to array ...\n")
     return np.array(rows)
 
 
-def save_dataset(dataset, filename="susy.npz"):
+def save_dataset(dataset, fileobj):
+    sys.stderr.write(f"Saving to file {fileobj.name} ...\n")
     labels = dataset[:,0]
     variables = dataset[:,1:]
-    np.savez_compressed("../shared/susy.npz",
+    np.savez_compressed(fileobj,
                         labels=labels.astype(np.int8),
                         variables=variables.astype(np.float32),
                         variable_names=VARIABLE_NAMES)
 
 
 if __name__ == "__main__":
-    dataset = get_susy_dataset()
-    save_dataset(dataset)
+    outpath = SCRIPT_DIR.parent / "shared" / "susy.npz"
+    with open(outpath, "wb") as outfile:
+        dataset = get_susy_dataset()
+        save_dataset(dataset, outfile)
